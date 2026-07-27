@@ -1,0 +1,35 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: sidecar-pod
+spec:
+  containers:
+    # Main application container - writes logs
+    - name: app
+      image: busybox:1.36
+      command: ["/bin/sh", "-c"]
+      args:
+        - |
+          i=0
+          while true; do
+            echo "$(date) - Log entry $i from main app" >> /var/log/app.log
+            i=$((i+1))
+            sleep 5
+          done
+      volumeMounts:
+        - name: shared-logs
+          mountPath: /var/log
+
+    # Sidecar container - reads and displays logs
+    - name: log-sidecar
+      image: busybox:1.36
+      command: ["/bin/sh", "-c"]
+      args:
+        - tail -f /var/log/app.log
+      volumeMounts:
+        - name: shared-logs
+          mountPath: /var/log
+
+  volumes:
+    - name: shared-logs
+      emptyDir: {}

@@ -1,0 +1,51 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: app-frontend-prod
+  labels:
+    app: my-app
+    tier: frontend
+    env: production
+spec:
+  containers:
+    - name: nginx
+      image: nginx:1.27
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: app-frontend-staging
+  labels:
+    app: my-app
+    tier: frontend
+    env: staging
+spec:
+  containers:
+    - name: nginx
+      image: nginx:1.27
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: app-backend-prod
+  labels:
+    app: my-app
+    tier: backend
+    env: production
+spec:
+  containers:
+    - name: nginx
+      image: nginx:1.27
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: app-backend-dev
+  labels:
+    app: my-app
+    tier: backend
+    env: development
+spec:
+  containers:
+    - name: nginx
+      image: nginx:1.27

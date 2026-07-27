@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: shared-network-pod
+spec:
+  containers:
+    # Container 1: nginx serving on port 80
+    - name: nginx
+      image: nginx:1.27
+      ports:
+        - containerPort: 80
+
+    # Container 2: can reach nginx via localhost
+    - name: busybox
+      image: busybox:1.36
+      command: ["/bin/sh", "-c", "sleep 3600"]
