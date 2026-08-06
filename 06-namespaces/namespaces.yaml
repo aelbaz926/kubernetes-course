@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: team-frontend
+  labels:
+    team: frontend
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: team-backend
+  labels:
+    team: backend

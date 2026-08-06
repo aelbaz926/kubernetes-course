@@ -9,6 +9,8 @@
 | 3 | Labels & Selectors | `03-labels-selectors/` | Labels are how Kubernetes organizes and selects objects |
 | 4 | ReplicaSet | `04-replicaset/` | ReplicaSet ensures a desired number of Pod replicas using selectors |
 | 5 | Deployment | `05-deployment/` | Deployment manages ReplicaSets and enables rolling updates |
+| 6 | Namespaces | `06-namespaces/` | Namespaces provide logical isolation and resource quotas within a cluster |
+| 7 | Services | `07-services/` | Services provide stable endpoints and load balancing for ephemeral Pods |
 
 ## Prerequisites
 
