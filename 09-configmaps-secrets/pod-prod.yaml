@@ -1,0 +1,23 @@
+# Prod environment - same image, different config
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prod-config
+data:
+  APP_ENV: "production"
+  APP_DEBUG: "false"
+  APP_LOG_LEVEL: "warn"
+  DATABASE_HOST: "db.prod.internal"
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: pod-prod-app
+spec:
+  containers:
+    - name: app
+      image: busybox
+      command: ["sleep", "3600"]
+      envFrom:
+        - configMapRef:
+            name: prod-config

@@ -1,0 +1,24 @@
+# Dev environment - same image, different config
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dev-config
+data:
+  APP_ENV: "development"
+  APP_DEBUG: "true"
+  APP_LOG_LEVEL: "debug"
+  DATABASE_HOST: "new-dev-db.example.com"
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: pod-dev-app
+spec:
+  containers:
+    - name: app
+      image: busybox
+      command: ["sleep", "3600"]
+      envFrom:
+        # Inject ALL keys from ConfigMap as env vars
+        - configMapRef:
+            name: dev-config

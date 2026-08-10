@@ -1,0 +1,34 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-config
+data:
+  # Simple key-value pairs
+  APP_ENV: "production"
+  APP_LOG_LEVEL: "info"
+  APP_MAX_CONNECTIONS: "100"
+
+  # Config file content (multi-line)
+  nginx.conf: |
+    server {
+        listen 80;
+        server_name myapp.com;
+
+        location / {
+            proxy_pass http://localhost:5000;
+        }
+
+        location /health {
+            return 200 'OK';
+        }
+    }
+
+  settings.json: |
+    {
+      "feature_flags": {
+        "new_dashboard": true,
+        "dark_mode": false
+      },
+      "cache_ttl": 300,
+      "max_retries": 3
+    }
