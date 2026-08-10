@@ -11,12 +11,15 @@
 | 5 | Deployment | `05-deployment/` | Deployment manages ReplicaSets and enables rolling updates |
 | 6 | Namespaces | `06-namespaces/` | Namespaces provide logical isolation and resource quotas within a cluster |
 | 7 | Services | `07-services/` | Services provide stable endpoints and load balancing for ephemeral Pods |
+| 8 | Ingress | `08-ingress/` | Ingress provides HTTP routing via host-based and path-based rules |
+| 9 | ConfigMaps & Secrets | `09-configmaps-secrets/` | Decouple configuration and sensitive data from container images |
+| 10 | Volumes & Persistent Storage | `10-volumes-storage/` | Volumes provide data persistence beyond the container lifecycle |
 
 ## Prerequisites
 
 ```bash
-# A running cluster (minikube, kind, or any cluster)
-minikube start
+# A running cluster (Docker Desktop Kubernetes, minikube, or kind)
+# Enable Kubernetes in Docker Desktop → Settings → Kubernetes → Enable
 
 # Verify
 kubectl cluster-info

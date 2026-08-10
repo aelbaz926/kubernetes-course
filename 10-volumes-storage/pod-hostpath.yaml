@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: pod-hostpath
+spec:
+  containers:
+    - name: app
+      image: busybox
+      command: ["sleep", "3600"]
+      volumeMounts:
+        - name: host-storage
+          mountPath: /data
+  volumes:
+    - name: host-storage
+      hostPath:
+        path: /tmp/k8s-demo-data    # Path on the Node (Docker Desktop VM)
+        type: DirectoryOrCreate      # Create the directory if it doesn't exist

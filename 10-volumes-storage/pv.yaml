@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: demo-pv
+spec:
+  capacity:
+    storage: 1Gi
+  accessModes:
+    - ReadWriteOnce      # Can be mounted read-write by a single Node
+  persistentVolumeReclaimPolicy: Retain   # Keep data after PVC is deleted
+  hostPath:
+    path: /tmp/k8s-pv-data    # On Docker Desktop, uses the VM filesystem
+    type: DirectoryOrCreate
