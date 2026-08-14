@@ -102,7 +102,10 @@ Both containers see the same files!
 
 ```bash
 # Kill the writer container (Pod stays, container restarts)
-kubectl exec pod-emptydir -c writer -- kill 1
+# Note: We kill the "sleep" child process, not PID 1.
+# PID 1 inside a container is protected by the Linux kernel and cannot be
+# killed from within its own PID namespace (even with SIGKILL).
+kubectl exec pod-emptydir -c writer -- sh -c "kill 1 && kill \$(pgrep sleep)"
 
 # Wait for restart
 kubectl get pod pod-emptydir --watch
