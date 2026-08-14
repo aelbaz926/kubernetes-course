@@ -110,14 +110,20 @@ kubectl exec pod-emptydir -c writer -- sh -c "kill 1 && kill \$(pgrep sleep)"
 # Wait for restart
 kubectl get pod pod-emptydir --watch
 
-# Data is still there after container restart!
+# Data is still there after container restart! (same timestamp as before)
 kubectl exec pod-emptydir -c reader -- cat /shared-data/output.txt
 
-# But delete the Pod — data is gone
+# Now delete the Pod — emptyDir is gone, a fresh volume is created
 kubectl delete pod pod-emptydir
 kubectl apply -f pod-emptydir.yaml
+
+# Wait for it to be ready
+kubectl wait --for=condition=Ready pod/pod-emptydir --timeout=30s
+
+# The file exists, but notice the TIMESTAMP is different — this is NEW data!
+# The old emptyDir was destroyed with the Pod, and the writer created fresh data.
 kubectl exec pod-emptydir -c reader -- cat /shared-data/output.txt
-# → "cat: can't open '/shared-data/output.txt': No such file or directory"
+# → "Written at <NEW timestamp>" — proves the old data was lost
 ```
 
 ---
