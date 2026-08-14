@@ -111,7 +111,15 @@ kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/late
 
 ### ⚠️ Fix for Docker Desktop / kind / local clusters
 
-After installing, you'll likely see `error: Metrics API not available` and the metrics-server Pod stuck at `0/1 Ready`. This is because local clusters use self-signed kubelet certificates without IP SANs, so metrics-server can't verify TLS.
+After installing, you'll likely see `error: Metrics API not available` and the metrics-server Pod stuck at `0/1 Ready`. This is because local clusters use self-signed kubelet certificates without **IP SANs**, so metrics-server can't verify TLS.
+
+**What are IP SANs?**
+
+A TLS certificate declares which hostnames/IPs it's valid for using **Subject Alternative Names (SANs)**:
+- **DNS SANs** — cert is valid for a hostname (e.g., `localhost`)
+- **IP SANs** — cert is valid for a specific IP (e.g., `172.18.0.3`)
+
+When metrics-server connects to the kubelet at `https://172.18.0.3:10250`, it checks: "Is this cert valid for IP `172.18.0.3`?" Local clusters generate simple certs with only DNS names but **no IP SANs** → TLS verification fails. Production clusters (EKS, GKE, AKS) generate proper certs with node IPs included, so this issue doesn't happen there.
 
 **Fix — tell metrics-server to skip kubelet TLS verification:**
 
@@ -121,7 +129,7 @@ kubectl patch deployment metrics-server -n kube-system \
   -p='[{"op": "add", "path": "/spec/template/spec/containers/0/args/-", "value": "--kubelet-insecure-tls"}]'
 ```
 
-> This is safe for local development. In production clusters (EKS, GKE, AKS), metrics-server works out of the box without this flag.
+> This is safe for local development. Never use `--kubelet-insecure-tls` in production.
 
 **For minikube specifically (simpler):**
 ```bash
