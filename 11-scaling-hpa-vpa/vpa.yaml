@@ -1,0 +1,21 @@
+apiVersion: autoscaling.k8s.io/v1
+kind: VerticalPodAutoscaler
+metadata:
+  name: php-apache-vpa
+spec:
+  targetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: php-apache
+  updatePolicy:
+    updateMode: "Off"  # Recommendation only — see README for all modes
+  resourcePolicy:
+    containerPolicies:
+      - containerName: php-apache
+        minAllowed:
+          cpu: 50m
+          memory: 32Mi
+        maxAllowed:
+          cpu: 1000m
+          memory: 512Mi
+        controlledResources: ["cpu", "memory"]

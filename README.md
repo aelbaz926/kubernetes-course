@@ -14,6 +14,8 @@
 | 8 | Ingress | `08-ingress/` | Ingress provides HTTP routing via host-based and path-based rules |
 | 9 | ConfigMaps & Secrets | `09-configmaps-secrets/` | Decouple configuration and sensitive data from container images |
 | 10 | Volumes & Persistent Storage | `10-volumes-storage/` | Volumes provide data persistence beyond the container lifecycle |
+| 11 | Scaling (HPA & VPA) | `11-scaling-hpa-vpa/` | Autoscale Pods horizontally (more replicas) or vertically (more resources) |
+| 12 | RBAC | `12-rbac/` | Control who can do what on which resources using roles and bindings |
 
 ## Prerequisites
 
