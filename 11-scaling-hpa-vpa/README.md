@@ -106,16 +106,36 @@ HPA needs real-time metrics. Most clusters require the **Metrics Server**:
 kubectl top nodes
 
 # If you get an error, install it:
-# For Docker Desktop / minikube:
 kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
+```
 
-# For minikube specifically:
+### ⚠️ Fix for Docker Desktop / kind / local clusters
+
+After installing, you'll likely see `error: Metrics API not available` and the metrics-server Pod stuck at `0/1 Ready`. This is because local clusters use self-signed kubelet certificates without IP SANs, so metrics-server can't verify TLS.
+
+**Fix — tell metrics-server to skip kubelet TLS verification:**
+
+```bash
+kubectl patch deployment metrics-server -n kube-system \
+  --type='json' \
+  -p='[{"op": "add", "path": "/spec/template/spec/containers/0/args/-", "value": "--kubelet-insecure-tls"}]'
+```
+
+> This is safe for local development. In production clusters (EKS, GKE, AKS), metrics-server works out of the box without this flag.
+
+**For minikube specifically (simpler):**
+```bash
 minikube addons enable metrics-server
+```
 
-# Wait ~60 seconds, then verify:
+**Verify it's working:**
+```bash
+# Wait ~30 seconds after the fix, then:
 kubectl top nodes
 kubectl top pods
 ```
+
+You should see CPU and memory usage. If `kubectl top pods` shows `error: metrics not available` for a specific Pod, just wait — it takes ~30 seconds for a new Pod's metrics to appear.
 
 > **Note:** VPA requires the [VPA components](https://github.com/kubernetes/autoscaler/tree/master/vertical-pod-autoscaler) installed separately. The HPA demo works out of the box; the VPA section shows the manifest structure and concepts.
 
