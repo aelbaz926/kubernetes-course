@@ -16,6 +16,9 @@
 | 10 | Volumes & Persistent Storage | `10-volumes-storage/` | Volumes provide data persistence beyond the container lifecycle |
 | 11 | Scaling (HPA & VPA) | `11-scaling-hpa-vpa/` | Autoscale Pods horizontally (more replicas) or vertically (more resources) |
 | 12 | RBAC | `12-rbac/` | Control who can do what on which resources using roles and bindings |
+| 13 | Network Policies | `13-network-policies/` | Control traffic flow between pods using firewall-like rules |
+| 14 | Probes (Health Checks) | `14-probes/` | Liveness, readiness, and startup probes for container health management |
+| 15 | Taints, Tolerations & Scheduling | `15-taints-tolerations-scheduling/` | Control which nodes pods run on using taints, affinities, and selectors |
 
 ## Prerequisites
 
