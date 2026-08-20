@@ -22,9 +22,108 @@ spec:
         ports:
         - containerPort: 80
       affinity:
+        # ════════════════════════════════════════════════════════════════
+        # POD ANTI-AFFINITY: "Don't put me on the same node as these pods"
+        #
+        # Use case: Spread replicas across nodes for high availability
+        # If one node dies, you don't lose ALL replicas
+        # ════════════════════════════════════════════════════════════════
         podAntiAffinity:
+          # ──────────────────────────────────────────────────────────
+          # REQUIRED (Hard Rule) — NEVER place on same node as matching pods
+          # If no node is available without a matching pod → Pod stays Pending
+          # ──────────────────────────────────────────────────────────
           requiredDuringSchedulingIgnoredDuringExecution:
           - labelSelector:
               matchLabels:
-                app: web-spread
+                app: web-spread      # Don't co-locate with pods that have app=web-spread
             topologyKey: kubernetes.io/hostname
+            # ↑ topologyKey defines the "zone" of anti-affinity:
+            #   kubernetes.io/hostname        → different NODES (most common)
+            #   topology.kubernetes.io/zone   → different AVAILABILITY ZONES
+            #   topology.kubernetes.io/region → different REGIONS
+
+# ════════════════════════════════════════════════════════════════════════
+# HOW THIS WORKS:
+#
+# Replica 1: Schedules on Node-A (no existing web-spread pods anywhere)
+# Replica 2: Can't go on Node-A (web-spread already there) → goes to Node-B
+# Replica 3: Can't go on Node-A or B → goes to Node-C
+# Replica 4: Can't go anywhere → stays PENDING (all nodes occupied)
+#
+# ON DOCKER DESKTOP (single node):
+# Replica 1: Runs fine
+# Replica 2: PENDING — can't find a different node!
+# Replica 3: PENDING — same reason
+# This PROVES anti-affinity is working correctly.
+# ════════════════════════════════════════════════════════════════════════
+
+---
+# ════════════════════════════════════════════════════════════════════════
+# BONUS: Pod Affinity Example (co-locate pods TOGETHER)
+#
+# Use case: Run app pods on the SAME node as cache pods
+# for low-latency communication
+# ════════════════════════════════════════════════════════════════════════
+apiVersion: v1
+kind: Pod
+metadata:
+  name: app-with-cache-affinity
+  labels:
+    demo: anti-affinity
+    app: backend-app
+spec:
+  containers:
+  - name: nginx
+    image: nginx:alpine
+    ports:
+    - containerPort: 80
+  affinity:
+    # ──────────────────────────────────────────────────────────────
+    # POD AFFINITY: "Put me on the SAME node as these pods"
+    # Use case: Co-locate app + cache for low latency
+    # ──────────────────────────────────────────────────────────────
+    podAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          labelSelector:
+            matchLabels:
+              app: redis-cache        # Run near pods with app=redis-cache
+          topologyKey: kubernetes.io/hostname
+    # ──────────────────────────────────────────────────────────────
+    # POD ANTI-AFFINITY: "Don't put me on same node as other backend-app pods"
+    # Use case: Spread backend replicas for HA
+    # ──────────────────────────────────────────────────────────────
+    podAntiAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 50
+        podAffinityTerm:
+          labelSelector:
+            matchLabels:
+              app: backend-app        # Avoid other backend-app pods
+          topologyKey: kubernetes.io/hostname
+          # Using "preferred" instead of "required" means:
+          # "Try to spread, but if you can't, it's OK to co-locate"
+          # This avoids Pending pods on small clusters
+
+# ════════════════════════════════════════════════════════════════════════
+# SUMMARY:
+#
+# podAffinity (ATTRACT):
+#   "Run me NEAR pods matching this selector"
+#   Use: app + cache co-location, frontend + backend on same node
+#
+# podAntiAffinity (REPEL):
+#   "Run me AWAY FROM pods matching this selector"
+#   Use: Spread replicas, avoid noisy neighbors
+#
+# required vs preferred:
+#   required  → Hard rule (Pending if can't satisfy)
+#   preferred → Soft rule (best effort, won't cause Pending)
+#
+# topologyKey options:
+#   kubernetes.io/hostname          → per-node (most common)
+#   topology.kubernetes.io/zone     → per-AZ (cloud HA)
+#   topology.kubernetes.io/region   → per-region (geo spreading)
+# ════════════════════════════════════════════════════════════════════════

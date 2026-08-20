@@ -12,19 +12,59 @@ spec:
     - containerPort: 80
   affinity:
     nodeAffinity:
+      # ──────────────────────────────────────────────────────────────
+      # REQUIRED (Hard Rule) — Pod WILL NOT schedule if no node matches
+      # Think of it as: "I MUST run on a node that matches this"
+      # If no node matches → Pod stays Pending forever
+      # ──────────────────────────────────────────────────────────────
       requiredDuringSchedulingIgnoredDuringExecution:
         nodeSelectorTerms:
         - matchExpressions:
-          - key: zone
-            operator: In
+          - key: zone                  # Node must have label "zone"
+            operator: In               # with a value IN this list
             values:
             - us-east-1a
             - us-east-1b
+            # Available operators:
+            #   In        — label value is in the list
+            #   NotIn     — label value is NOT in the list
+            #   Exists    — label key exists (any value)
+            #   DoesNotExist — label key does NOT exist
+            #   Gt        — label value > specified value (numeric)
+            #   Lt        — label value < specified value (numeric)
+
+      # ──────────────────────────────────────────────────────────────
+      # PREFERRED (Soft Rule) — Scheduler TRIES to match, but not mandatory
+      # Think of it as: "I'd PREFER a node that matches this, but it's OK if not"
+      # If no node matches → Pod still schedules on best available node
+      # Weight (1-100): higher = stronger preference
+      # ──────────────────────────────────────────────────────────────
       preferredDuringSchedulingIgnoredDuringExecution:
-      - weight: 80
+      - weight: 80                     # How much to prefer this (1-100)
         preference:
           matchExpressions:
           - key: disktype
             operator: In
             values:
             - ssd
+      # You can have multiple preferred rules with different weights:
+      # - weight: 50
+      #   preference:
+      #     matchExpressions:
+      #     - key: gpu
+      #       operator: Exists
+
+# ════════════════════════════════════════════════════════════════════
+# HOW IT WORKS TOGETHER:
+#
+# 1. Scheduler FIRST filters nodes by REQUIRED rules
+#    → Only nodes with label zone=us-east-1a OR zone=us-east-1b pass
+#
+# 2. Among those nodes, scheduler SCORES by PREFERRED rules
+#    → Nodes with disktype=ssd get +80 score bonus
+#
+# 3. Pod is placed on the highest-scoring node
+#
+# "IgnoredDuringExecution" means: if the node label changes AFTER
+# the pod is running, the pod is NOT evicted. It stays put.
+# ════════════════════════════════════════════════════════════════════
