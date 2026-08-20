@@ -1,0 +1,30 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web-spread
+  labels:
+    demo: anti-affinity
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: web-spread
+      demo: anti-affinity
+  template:
+    metadata:
+      labels:
+        app: web-spread
+        demo: anti-affinity
+    spec:
+      containers:
+      - name: nginx
+        image: nginx:alpine
+        ports:
+        - containerPort: 80
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchLabels:
+                app: web-spread
+            topologyKey: kubernetes.io/hostname

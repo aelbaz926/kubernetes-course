@@ -1,0 +1,37 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: startup-demo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: startup-demo
+  template:
+    metadata:
+      labels:
+        app: startup-demo
+    spec:
+      containers:
+      - name: app
+        image: ahmedhedihed/startup-demo:v1
+        ports:
+        - containerPort: 8080
+        startupProbe:
+          httpGet:
+            path: /startup
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          failureThreshold: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: startup-demo
+spec:
+  selector:
+    app: startup-demo
+  ports:
+  - port: 80
+    targetPort: 8080
