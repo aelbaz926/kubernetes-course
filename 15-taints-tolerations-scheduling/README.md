@@ -27,6 +27,23 @@ With scheduling controls:
 
 ---
 
+## Cluster Setup
+
+This demo uses a **4-node cluster**. Check your nodes:
+
+```bash
+kubectl get nodes
+# NAME       STATUS   ROLES           AGE   VERSION
+# node-1     Ready    control-plane   ..    ..
+# node-2     Ready    <none>          ..    ..
+# node-3     Ready    <none>          ..    ..
+# node-4     Ready    <none>          ..    ..
+```
+
+> **Note:** Throughout this demo, replace `node-2`, `node-3`, `node-4` with your actual node names from `kubectl get nodes`.
+
+---
+
 ## Taints & Tolerations
 
 ### How They Work
@@ -44,8 +61,8 @@ With scheduling controls:
 │                                                                      │
 │  Taint: gpu=true:NoSchedule     Toleration: gpu=true:NoSchedule     │
 │                                                                      │
-│  Pod WITHOUT toleration → ❌ REJECTED                                │
-│  Pod WITH toleration    → ✅ SCHEDULED (if it also selects this node)│
+│  Pod WITHOUT toleration → ❌ REJECTED from this node                 │
+│  Pod WITH toleration    → ✅ CAN schedule on this node               │
 │                                                                      │
 └─────────────────────────────────────────────────────────────────────┘
 ```
@@ -65,9 +82,12 @@ With scheduling controls:
 kubectl taint nodes <node> key=value:Effect
 
 # Examples
-kubectl taint nodes node1 gpu=true:NoSchedule
-kubectl taint nodes node1 env=production:NoSchedule
-kubectl taint nodes node1 maintenance=true:NoExecute
+kubectl taint nodes node-2 gpu=true:NoSchedule
+kubectl taint nodes node-3 env=production:NoSchedule
+kubectl taint nodes node-4 maintenance=true:NoExecute
+
+# Remove a taint (add minus at the end)
+kubectl taint nodes node-2 gpu=true:NoSchedule-
 ```
 
 ### Toleration Format
@@ -157,65 +177,86 @@ spec:
 
 ## Step-by-Step Demo
 
-### ⚠️ Docker Desktop Note
-
-Docker Desktop has a **single node** (`docker-desktop`). Taints and tolerations still work — we'll taint that node and see pods get rejected, then add tolerations to fix it.
-
-For pod anti-affinity demos, the single-node limitation means pods may stay Pending. This is expected behavior that proves the scheduling rules are working.
-
----
-
 ### Demo 1: Taint with NoSchedule
 
 This demonstrates that tainting a node **prevents new pods from being scheduled** on it.
 
 ```bash
-# Check your node name
+# Check your nodes
 kubectl get nodes
-# Output: docker-desktop
+# Pick a worker node (e.g., node-2)
 
-# Apply a taint to the node
-kubectl taint nodes docker-desktop dedicated=gpu:NoSchedule
+# Apply a taint to ONE node
+kubectl taint nodes node-2 dedicated=gpu:NoSchedule
 
 # Try to deploy a pod WITHOUT a toleration
 kubectl apply -f 01-taint-noschedule.yaml
 
-# Check pod status — it will be PENDING (can't be scheduled!)
+# Check which node it landed on — it avoids node-2!
+kubectl get pods -l demo=taint-noschedule -o wide
+# NODE: node-3 or node-4 (never node-2)
+
+# Scale up to see the pattern
+kubectl run taint-test-1 --image=nginx:alpine -l demo=taint-noschedule
+kubectl run taint-test-2 --image=nginx:alpine -l demo=taint-noschedule
+
+# All pods avoid the tainted node
+kubectl get pods -l demo=taint-noschedule -o wide
+# None on node-2!
+```
+
+Now taint ALL worker nodes to see a pod go Pending:
+
+```bash
+# Taint ALL worker nodes
+kubectl taint nodes node-3 dedicated=gpu:NoSchedule
+kubectl taint nodes node-4 dedicated=gpu:NoSchedule
+
+# Delete and recreate the pod
+kubectl delete pod -l demo=taint-noschedule
+kubectl apply -f 01-taint-noschedule.yaml
+
+# Now it's PENDING — no untainted node available!
 kubectl get pods -l demo=taint-noschedule
 # STATUS: Pending
 
-# Check why it's pending
-kubectl describe pod -l demo=taint-noschedule | grep -A5 Events
-# "0/1 nodes are available: 1 node(s) had untolerated taint {dedicated: gpu}"
+kubectl describe pod -l demo=taint-noschedule | grep -A3 Events
+# "0/4 nodes are available: 3 node(s) had untolerated taint, 1 node(s) had taint that the pod didn't tolerate"
 
-# Clean up the taint (important!)
-kubectl taint nodes docker-desktop dedicated=gpu:NoSchedule-
+# Clean up all taints
+kubectl taint nodes node-2 dedicated=gpu:NoSchedule-
+kubectl taint nodes node-3 dedicated=gpu:NoSchedule-
+kubectl taint nodes node-4 dedicated=gpu:NoSchedule-
 
-# Pod should now become Running
+# Pod becomes Running
 kubectl get pods -l demo=taint-noschedule -w
 ```
 
 ### Demo 2: Pod with Toleration
 
-This pod **tolerates** the taint and CAN be scheduled:
+This pod **tolerates** the taint and CAN be scheduled on the tainted node:
 
 ```bash
-# Re-apply the taint
-kubectl taint nodes docker-desktop dedicated=gpu:NoSchedule
+# Taint one node
+kubectl taint nodes node-2 dedicated=gpu:NoSchedule
 
 # Deploy pod WITH toleration
 kubectl apply -f 02-toleration.yaml
 
-# This pod runs fine — it tolerates the taint ✅
-kubectl get pods -l demo=toleration
-# STATUS: Running
+# This pod CAN run on node-2 (it tolerates the taint) ✅
+kubectl get pods -l demo=toleration -o wide
+# It might land on node-2, node-3, or node-4 (toleration allows it but doesn't force it)
 
-# Meanwhile, the pod from demo 1 is still Pending ❌
-kubectl get pods -l demo=taint-noschedule
-# STATUS: Pending (no toleration)
+# Deploy pod WITHOUT toleration (from demo 1)
+kubectl delete -f 01-taint-noschedule.yaml 2>/dev/null
+kubectl apply -f 01-taint-noschedule.yaml
+
+# This pod CANNOT run on node-2 ❌
+kubectl get pods -l demo=taint-noschedule -o wide
+# Always on node-3 or node-4 (never node-2)
 
 # Clean up taint
-kubectl taint nodes docker-desktop dedicated=gpu:NoSchedule-
+kubectl taint nodes node-2 dedicated=gpu:NoSchedule-
 ```
 
 ### Demo 3: Taint with NoExecute (Eviction)
@@ -223,33 +264,35 @@ kubectl taint nodes docker-desktop dedicated=gpu:NoSchedule-
 `NoExecute` is more aggressive — it **evicts existing running pods**:
 
 ```bash
-# First clean up previous demos
+# Clean up previous demos
 kubectl delete -f 01-taint-noschedule.yaml -f 02-toleration.yaml 2>/dev/null
 
-# Deploy a regular pod (no toleration)
-kubectl apply -f 01-taint-noschedule.yaml
-kubectl wait --for=condition=ready pod -l demo=taint-noschedule --timeout=60s
+# Deploy some regular pods
+kubectl run eviction-test-1 --image=nginx:alpine -l demo=eviction
+kubectl run eviction-test-2 --image=nginx:alpine -l demo=eviction
+kubectl wait --for=condition=ready pod -l demo=eviction --timeout=60s
 
-# Verify it's running
-kubectl get pods -l demo=taint-noschedule
-# STATUS: Running ✅
+# Check which nodes they're on
+kubectl get pods -l demo=eviction -o wide
 
-# Now apply a NoExecute taint — this EVICTS the running pod!
-kubectl taint nodes docker-desktop maintenance=true:NoExecute
+# Now apply a NoExecute taint to one of those nodes
+# (replace node-X with the node one of the pods is on)
+kubectl taint nodes node-2 maintenance=true:NoExecute
 
-# Watch the pod get evicted
-kubectl get pods -l demo=taint-noschedule
-# STATUS: Terminated/Evicted → then Pending (can't reschedule)
+# Watch pods get EVICTED from that node!
+kubectl get pods -l demo=eviction -o wide -w
+# Pods on node-2 get terminated and rescheduled to other nodes
 
-# Deploy pod with NoExecute toleration (and tolerationSeconds)
+# Deploy pod with NoExecute toleration + tolerationSeconds
 kubectl apply -f 03-taint-noexecute.yaml
 
-# This pod runs AND will be evicted after 60 seconds (tolerationSeconds)
-kubectl get pods -l demo=noexecute-toleration
-# STATUS: Running (for 60 seconds, then evicted)
+# This pod CAN run on the tainted node, but only for 60 seconds
+kubectl get pods -l demo=noexecute-toleration -o wide -w
+# After 60 seconds, it gets evicted even though it has the toleration
 
-# Clean up the taint (IMPORTANT — otherwise nothing can run!)
-kubectl taint nodes docker-desktop maintenance=true:NoExecute-
+# Clean up
+kubectl taint nodes node-2 maintenance=true:NoExecute-
+kubectl delete pod -l demo=eviction
 ```
 
 ### Demo 4: Node Selector
@@ -257,64 +300,75 @@ kubectl taint nodes docker-desktop maintenance=true:NoExecute-
 Simple label-based scheduling:
 
 ```bash
-# Label the node
-kubectl label nodes docker-desktop disktype=ssd
+# Label ONE specific node
+kubectl label nodes node-3 disktype=ssd
 
 # Deploy pod with nodeSelector
 kubectl apply -f 04-node-selector.yaml
 
-# Pod runs on the labeled node ✅
+# Pod runs ONLY on the labeled node ✅
 kubectl get pods -l demo=node-selector -o wide
-# NODE: docker-desktop
+# NODE: node-3 (the only one with disktype=ssd)
 
-# Remove the label and try again
-kubectl label nodes docker-desktop disktype-
+# Try removing the label (pod stays — labels checked at scheduling time only)
+kubectl label nodes node-3 disktype-
+
+# Delete and recreate — now it goes Pending (no matching node)
 kubectl delete -f 04-node-selector.yaml
 kubectl apply -f 04-node-selector.yaml
-
-# Pod is Pending — no node matches the selector
 kubectl get pods -l demo=node-selector
 # STATUS: Pending
 
-# Re-add the label
-kubectl label nodes docker-desktop disktype=ssd
-# Pod becomes Running
+# Re-add label to fix it
+kubectl label nodes node-3 disktype=ssd
+kubectl get pods -l demo=node-selector -w
+# STATUS: Running
 ```
 
 ### Demo 5: Node Affinity
 
-Advanced node selection with operators:
+Advanced node selection with required + preferred rules:
 
 ```bash
-# Label the node with zone info
-kubectl label nodes docker-desktop zone=us-east-1a
+# Label nodes with zone info
+kubectl label nodes node-2 zone=us-east-1a
+kubectl label nodes node-3 zone=us-east-1a disktype=ssd
+kubectl label nodes node-4 zone=us-east-1b
 
 # Deploy pod with node affinity
 kubectl apply -f 05-node-affinity.yaml
 
-# Pod runs — node matches affinity rules
-kubectl get pods -l demo=node-affinity
-# STATUS: Running
-
-# Check which node it was scheduled on
+# Pod runs on a node in zone us-east-1a or us-east-1b (required)
+# And PREFERS nodes with disktype=ssd (preferred, weight 80)
 kubectl get pod -l demo=node-affinity -o wide
+# Most likely on node-3 (matches zone AND has ssd preference)
+
+# Check scheduling decision
+kubectl describe pod -l demo=node-affinity | grep "Node:"
 ```
 
 ### Demo 6: Pod Anti-Affinity (Spread Replicas)
 
-Ensures replicas don't all land on the same node:
+With 4 nodes, replicas actually **spread across different nodes**:
 
 ```bash
 kubectl apply -f 06-pod-anti-affinity.yaml
 
-# With single-node Docker Desktop:
-# - First replica runs fine
-# - Additional replicas will be Pending (can't find different node)
-kubectl get pods -l demo=anti-affinity
+# Watch replicas spread across nodes ✅
+kubectl get pods -l demo=anti-affinity -o wide
+# NAME                          NODE
+# web-spread-xxxxx-aaaaa        node-2
+# web-spread-xxxxx-bbbbb        node-3
+# web-spread-xxxxx-ccccc        node-4
+# Each replica on a DIFFERENT node!
 
-# This proves anti-affinity is working! On a multi-node cluster,
-# replicas would spread across different nodes.
-kubectl describe pod -l demo=anti-affinity | grep -A3 "Events"
+# The deployment has 3 replicas and we have 3+ worker nodes
+# So all replicas can be satisfied
+
+# Try scaling to more than available nodes
+kubectl scale deployment web-spread --replicas=5
+kubectl get pods -l app=web-spread -o wide
+# 3-4 running, extras may be Pending (can't find unique node)
 ```
 
 ---
@@ -326,9 +380,9 @@ kubectl describe pod -l demo=anti-affinity | grep -A3 "Events"
 kubectl describe pod <pod-name>
 
 # Common scheduling failure messages:
-# "0/1 nodes are available: 1 node(s) had untolerated taint"
-# "0/1 nodes are available: 1 node(s) didn't match node selector"
-# "0/1 nodes are available: 1 node(s) didn't match pod anti-affinity rules"
+# "0/4 nodes are available: 3 node(s) had untolerated taint"
+# "0/4 nodes are available: 4 node(s) didn't match node selector"
+# "0/4 nodes are available: 1 node(s) had untolerated taint, 3 didn't match pod anti-affinity rules"
 ```
 
 ---
@@ -350,13 +404,22 @@ kubectl describe pod <pod-name>
 ## Clean Up
 
 ```bash
-# Delete all demo pods
+# Delete all demo pods/deployments
 kubectl delete -f .
 
-# Remove node labels and taints
-kubectl taint nodes docker-desktop dedicated=gpu:NoSchedule- 2>/dev/null
-kubectl taint nodes docker-desktop maintenance=true:NoExecute- 2>/dev/null
-kubectl label nodes docker-desktop disktype- zone- 2>/dev/null
+# Remove node labels
+kubectl label nodes node-2 zone- disktype- 2>/dev/null
+kubectl label nodes node-3 zone- disktype- 2>/dev/null
+kubectl label nodes node-4 zone- disktype- 2>/dev/null
+
+# Remove any lingering taints
+kubectl taint nodes node-2 dedicated=gpu:NoSchedule- 2>/dev/null
+kubectl taint nodes node-3 dedicated=gpu:NoSchedule- 2>/dev/null
+kubectl taint nodes node-4 dedicated=gpu:NoSchedule- 2>/dev/null
+kubectl taint nodes node-2 maintenance=true:NoExecute- 2>/dev/null
+
+# Delete extra test pods
+kubectl delete pod -l demo=eviction 2>/dev/null
 ```
 
 ---
@@ -365,9 +428,10 @@ kubectl label nodes docker-desktop disktype- zone- 2>/dev/null
 
 - **Taints** = nodes repel pods, **Tolerations** = pods accept taints
 - **NoSchedule** = prevent scheduling, **NoExecute** = evict running pods
+- Tolerations don't ATTRACT pods — they only remove the repulsion
 - **nodeSelector** = simple label matching (exact key=value)
-- **Node Affinity** = advanced matching (In, NotIn, Exists, operators)
+- **Node Affinity** = advanced matching (In, NotIn, Exists, operators, weights)
 - **Pod Anti-Affinity** = spread replicas across failure domains
-- Taints + Tolerations don't ATTRACT pods — they only remove the repulsion
-- To guarantee a pod runs on a specific node, use **taint + toleration + nodeSelector**
-- `tolerationSeconds` on NoExecute = "stay for X seconds, then leave"
+- To guarantee a pod on a specific node: **taint + toleration + nodeSelector**
+- `tolerationSeconds` on NoExecute = "stay for X seconds, then get evicted"
+- With 4 nodes, anti-affinity can spread 3 replicas perfectly across worker nodes

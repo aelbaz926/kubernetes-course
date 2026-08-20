@@ -44,18 +44,17 @@ spec:
             #   topology.kubernetes.io/region → different REGIONS
 
 # ════════════════════════════════════════════════════════════════════════
-# HOW THIS WORKS:
+# HOW THIS WORKS (4-node cluster):
 #
-# Replica 1: Schedules on Node-A (no existing web-spread pods anywhere)
-# Replica 2: Can't go on Node-A (web-spread already there) → goes to Node-B
-# Replica 3: Can't go on Node-A or B → goes to Node-C
-# Replica 4: Can't go anywhere → stays PENDING (all nodes occupied)
+# Replica 1: Schedules on node-2 (no existing web-spread pods anywhere)
+# Replica 2: Can't go on node-2 (web-spread already there) → goes to node-3
+# Replica 3: Can't go on node-2 or node-3 → goes to node-4
 #
-# ON DOCKER DESKTOP (single node):
-# Replica 1: Runs fine
-# Replica 2: PENDING — can't find a different node!
-# Replica 3: PENDING — same reason
-# This PROVES anti-affinity is working correctly.
+# All 3 replicas spread across different nodes! ✅
+# If one node dies, you only lose 1 replica — high availability!
+#
+# If you scale to 5 replicas:
+# Replicas 4+: May go Pending if no more unique nodes available
 # ════════════════════════════════════════════════════════════════════════
 
 ---
