@@ -253,6 +253,44 @@ values.yaml (chart defaults)
 
 Now let's see the real power of Helm — taking our [Feedback App](https://github.com/aelbaz926/feedback-app) with its 5 separate YAML files and converting it into a single, reusable, configurable Helm chart.
 
+### First — Deploy the Original App (without Helm)
+
+Let's deploy the app the "old way" so we can compare. The original manifests are in `feedback-app-original/`:
+
+```bash
+# Look at the hardcoded files
+ls feedback-app-original/
+
+# Deploy the old way — multiple kubectl commands
+kubectl apply -f feedback-app-original/db-secret.yaml
+kubectl apply -f feedback-app-original/postgres-init-configmap.yaml
+kubectl apply -f feedback-app-original/postgres-deployment.yaml
+kubectl apply -f feedback-app-original/backend-deployment.yaml
+kubectl apply -f feedback-app-original/frontend-deployment.yaml
+```
+
+```bash
+# Wait for everything to be ready
+kubectl get pods -w
+
+# Test the app
+kubectl port-forward svc/frontend-service 8080:80
+# Open http://localhost:8080 — submit some feedback!
+```
+
+**Notice the problems:**
+- 5 separate `kubectl apply` commands (order matters!)
+- All values are hardcoded — want 3 replicas? Edit the YAML file
+- Want to deploy to another namespace? Copy all 5 files, change names to avoid collisions
+- No versioning — how do you rollback?
+
+```bash
+# Clean up the old way
+kubectl delete -f feedback-app-original/
+```
+
+### Now — the Helm way
+
 ### Original app (hardcoded YAML):
 ```
 k8s/
@@ -305,6 +343,29 @@ kubectl get all
 kubectl port-forward svc/feedback-dev-frontend-service 8080:80
 # Open http://localhost:8080
 ```
+
+#### Test the Application
+
+```bash
+# 1. Port-forward the frontend
+kubectl port-forward svc/feedback-dev-frontend-service 8080:80
+
+# 2. Open http://localhost:8080 in your browser
+#    - Submit a feedback message (e.g., "Helm is awesome!")
+#    - You should see it appear in the list
+#    - Delete a message — it should disappear
+
+# 3. Or test via curl:
+# Submit feedback
+curl -X POST http://localhost:8080/api/feedback \
+  -H "Content-Type: application/json" \
+  -d '{"text": "Helm is awesome!"}'
+
+# Get all feedback
+curl http://localhost:8080/api/feedback
+```
+
+The app works! Frontend → Backend → PostgreSQL, all deployed with one `helm install` command.
 
 ### 4. Deploy to Prod (same chart, different values!)
 
@@ -427,6 +488,40 @@ helm repo index . --url https://your-org.github.io/helm-charts/
 | `{{ .Values.x \| b64enc }}` | Pipe to a function | Base64 encode |
 | `{{ .Values.x \| quote }}` | Wrap in quotes | `"value"` |
 | `{{ nindent 4 }}` | Add newline + indent | Properly format YAML blocks |
+
+### Deep Dive: Understanding `{{- include "name" . | nindent 4 }}`
+
+This is the most confusing line for beginners. Let's break it down:
+
+```
+{{- include "feedback-app.labels" . | nindent 4 }}
+```
+
+| Part | Meaning |
+|------|---------|
+| `{{-` | Start template. The `-` trims whitespace/newlines **before** this output (keeps YAML clean) |
+| `include "feedback-app.labels"` | Call the named template defined in `_helpers.tpl` |
+| `.` | Pass the current context (so the template can access `.Chart`, `.Release`, etc.) |
+| `\|` | Pipe the output to the next function (like bash pipes) |
+| `nindent 4` | Add a **n**ewline then **indent** every line by 4 spaces |
+| `}}` | End template |
+
+**Why `nindent 4`?**
+
+YAML is indentation-sensitive. If `labels:` is at 2 spaces, the label values must be at 4 spaces:
+
+```yaml
+metadata:
+  labels:                                          # ← 2 spaces
+    app.kubernetes.io/name: feedback-app           # ← 4 spaces (nindent 4)
+    app.kubernetes.io/instance: feedback-dev       # ← 4 spaces
+```
+
+Without `nindent`, the output would be left-aligned and break YAML parsing.
+
+**Why `include` instead of `template`?**
+
+Go has a built-in `template` action, but it can't pipe output. `include` is a Helm function that returns the output as a string, so you can pipe it to `nindent`, `quote`, `trim`, etc.
 
 ---
 
