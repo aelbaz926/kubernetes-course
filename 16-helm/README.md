@@ -261,7 +261,7 @@ Let's deploy the app the "old way" so we can compare. The original manifests are
 # Look at the hardcoded files
 ls feedback-app-original/
 
-# Deploy the old way — multiple kubectl commands
+# Deploy the old way — multiple kubectl commands (order matters!)
 kubectl apply -f feedback-app-original/db-secret.yaml
 kubectl apply -f feedback-app-original/postgres-init-configmap.yaml
 kubectl apply -f feedback-app-original/postgres-deployment.yaml
@@ -270,24 +270,56 @@ kubectl apply -f feedback-app-original/frontend-deployment.yaml
 ```
 
 ```bash
-# Wait for everything to be ready
-kubectl get pods -w
+# Wait for all Pods to be ready
+kubectl wait --for=condition=Ready pods -l app=postgres --timeout=120s
+kubectl wait --for=condition=Ready pods -l app=backend --timeout=60s
+kubectl wait --for=condition=Ready pods -l app=frontend --timeout=60s
 
-# Test the app
-kubectl port-forward svc/frontend-service 8080:80
-# Open http://localhost:8080 — submit some feedback!
+# Verify everything is running
+kubectl get pods
+kubectl get svc
 ```
 
-**Notice the problems:**
+#### Test the Application
+
+```bash
+# Port-forward the frontend (keep this terminal open!)
+kubectl port-forward svc/frontend-service 9090:80
+```
+
+Open **http://127.0.0.1:9090** in your browser:
+- ✅ You should see the Feedback App UI
+- ✅ Submit a message (e.g., "Hello from Kubernetes!")
+- ✅ The message appears in the list (Frontend → Backend → PostgreSQL working!)
+- ✅ Delete a message — it disappears
+
+Or test via curl (in another terminal):
+```bash
+# Get all messages (empty at first)
+curl http://127.0.0.1:9090/api/messages
+
+# Submit a message
+curl -X POST http://127.0.0.1:9090/api/message \
+  -H "Content-Type: application/json" \
+  -d '{"message": "Hello from Kubernetes!"}'
+
+# Get messages again — your message is there!
+curl http://127.0.0.1:9090/api/messages
+```
+
+> **Note:** Stop the port-forward with `Ctrl+C` when done testing.
+
+#### Clean up the old way
+
+```bash
+kubectl delete -f feedback-app-original/
+```
+
+**Notice the problems with this approach:**
 - 5 separate `kubectl apply` commands (order matters!)
 - All values are hardcoded — want 3 replicas? Edit the YAML file
 - Want to deploy to another namespace? Copy all 5 files, change names to avoid collisions
 - No versioning — how do you rollback?
-
-```bash
-# Clean up the old way
-kubectl delete -f feedback-app-original/
-```
 
 ### Now — the Helm way
 
@@ -339,31 +371,30 @@ helm install feedback-dev ./feedback-app-chart -f ./feedback-app-chart/values-de
 helm list
 kubectl get all
 
-# Access the app
-kubectl port-forward svc/feedback-dev-frontend-service 8080:80
-# Open http://localhost:8080
+# Access the app (keep this terminal open!)
+kubectl port-forward svc/feedback-dev-frontend-service 9090:80
+# Open http://127.0.0.1:9090
 ```
 
 #### Test the Application
 
+Open **http://127.0.0.1:9090** in your browser:
+- ✅ Submit a feedback message
+- ✅ See it appear in the list
+- ✅ Delete it
+
+Or test via curl (in another terminal):
 ```bash
-# 1. Port-forward the frontend
-kubectl port-forward svc/feedback-dev-frontend-service 8080:80
-
-# 2. Open http://localhost:8080 in your browser
-#    - Submit a feedback message (e.g., "Helm is awesome!")
-#    - You should see it appear in the list
-#    - Delete a message — it should disappear
-
-# 3. Or test via curl:
-# Submit feedback
-curl -X POST http://localhost:8080/api/feedback \
+# Submit a message
+curl -X POST http://127.0.0.1:9090/api/message \
   -H "Content-Type: application/json" \
-  -d '{"text": "Helm is awesome!"}'
+  -d '{"message": "Deployed with Helm!"}'
 
-# Get all feedback
-curl http://localhost:8080/api/feedback
+# Get all messages
+curl http://127.0.0.1:9090/api/messages
 ```
+
+> Stop the port-forward with `Ctrl+C` when done.
 
 The app works! Frontend → Backend → PostgreSQL, all deployed with one `helm install` command.
 
