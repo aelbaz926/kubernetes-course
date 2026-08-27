@@ -1,0 +1,35 @@
+# Default values for feedback-app
+# This file is the base — override per environment using values-dev.yaml / values-prod.yaml
+
+# --- Frontend ---
+frontend:
+  replicaCount: 1
+  image:
+    repository: ahmedhedihed/feedback-frontend
+    tag: "latest"
+  service:
+    type: NodePort
+    port: 80
+    nodePort: 30080
+
+# --- Backend ---
+backend:
+  replicaCount: 1
+  image:
+    repository: ahmedhedihed/feedback-backend
+    tag: "81"
+  service:
+    type: ClusterIP
+    port: 5000
+
+# --- Database ---
+database:
+  enabled: true
+  image:
+    repository: postgres
+    tag: "13"
+  service:
+    port: 5432
+  password: password    # Override this in production!
+  storage:
+    type: emptyDir      # Use "pvc" for persistent storage in production

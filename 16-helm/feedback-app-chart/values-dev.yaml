@@ -1,0 +1,21 @@
+# values-dev.yaml — Development environment overrides
+# Usage: helm install feedback-dev ./feedback-app-chart -f ./feedback-app-chart/values-dev.yaml
+
+frontend:
+  replicaCount: 1
+  image:
+    tag: "latest"
+  service:
+    type: NodePort
+    nodePort: 30080
+
+backend:
+  replicaCount: 1
+  image:
+    tag: "81"
+
+database:
+  enabled: true
+  password: devpassword123
+  storage:
+    type: emptyDir     # No persistence needed in dev

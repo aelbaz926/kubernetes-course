@@ -1,0 +1,57 @@
+{{- if .Values.database.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-postgres
+  labels:
+    {{- include "feedback-app.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "feedback-app.selectorLabels" "postgres" | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "feedback-app.selectorLabels" "postgres" | nindent 8 }}
+    spec:
+      containers:
+        - name: postgres
+          image: "{{ .Values.database.image.repository }}:{{ .Values.database.image.tag }}"
+          env:
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-db-secret
+                  key: password
+          ports:
+            - containerPort: 5432
+          volumeMounts:
+            - name: pgdata
+              mountPath: /var/lib/postgresql/data
+            - name: init-script
+              mountPath: /docker-entrypoint-initdb.d/
+      volumes:
+        - name: pgdata
+          {{- if eq .Values.database.storage.type "pvc" }}
+          persistentVolumeClaim:
+            claimName: {{ .Release.Name }}-pgdata
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        - name: init-script
+          configMap:
+            name: {{ .Release.Name }}-postgres-init
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-postgres-service
+  labels:
+    {{- include "feedback-app.labels" . | nindent 4 }}
+spec:
+  selector:
+    {{- include "feedback-app.selectorLabels" "postgres" | nindent 4 }}
+  ports:
+    - port: {{ .Values.database.service.port }}
+{{- end }}

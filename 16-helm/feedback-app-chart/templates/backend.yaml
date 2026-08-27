@@ -1,0 +1,41 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-backend
+  labels:
+    {{- include "feedback-app.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.backend.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "feedback-app.selectorLabels" "backend" | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "feedback-app.selectorLabels" "backend" | nindent 8 }}
+    spec:
+      containers:
+        - name: backend
+          image: "{{ .Values.backend.image.repository }}:{{ .Values.backend.image.tag }}"
+          ports:
+            - containerPort: 5000
+          env:
+            - name: DB_HOST
+              value: {{ .Release.Name }}-postgres-service
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-db-secret
+                  key: password
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-backend-service
+  labels:
+    {{- include "feedback-app.labels" . | nindent 4 }}
+spec:
+  selector:
+    {{- include "feedback-app.selectorLabels" "backend" | nindent 4 }}
+  ports:
+    - port: {{ .Values.backend.service.port }}

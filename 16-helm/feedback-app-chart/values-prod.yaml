@@ -1,0 +1,21 @@
+# values-prod.yaml — Production environment overrides
+# Usage: helm install feedback-prod ./feedback-app-chart -f ./feedback-app-chart/values-prod.yaml
+
+frontend:
+  replicaCount: 3
+  image:
+    tag: "81"
+  service:
+    type: ClusterIP     # Use Ingress in front of this in production
+    port: 80
+
+backend:
+  replicaCount: 3
+  image:
+    tag: "81"
+
+database:
+  enabled: true
+  password: sup3rS3cur3Pr0d!   # In real life, use external secrets or sealed-secrets
+  storage:
+    type: pvc                   # Persist data in production

@@ -1,0 +1,38 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-frontend
+  labels:
+    {{- include "feedback-app.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.frontend.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "feedback-app.selectorLabels" "frontend" | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "feedback-app.selectorLabels" "frontend" | nindent 8 }}
+    spec:
+      containers:
+        - name: frontend
+          image: "{{ .Values.frontend.image.repository }}:{{ .Values.frontend.image.tag }}"
+          ports:
+            - containerPort: 80
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-frontend-service
+  labels:
+    {{- include "feedback-app.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.frontend.service.type }}
+  selector:
+    {{- include "feedback-app.selectorLabels" "frontend" | nindent 4 }}
+  ports:
+    - port: {{ .Values.frontend.service.port }}
+      targetPort: 80
+      {{- if eq .Values.frontend.service.type "NodePort" }}
+      nodePort: {{ .Values.frontend.service.nodePort }}
+      {{- end }}
