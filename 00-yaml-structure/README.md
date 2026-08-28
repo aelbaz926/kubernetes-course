@@ -2,6 +2,16 @@
 
 Every Kubernetes object is defined using a YAML manifest with **4 top-level fields**:
 
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: my-pod
+spec:
+  containers:
+    - name: nginx
+      image: nginx:1.27
+```
 
 ---
 
